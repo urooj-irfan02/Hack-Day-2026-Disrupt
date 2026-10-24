@@ -91,6 +91,44 @@ app.get("/api/sample-data", (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/sample-pack.zip
+ * Returns a bundled zip of all sample chats, catalogs, and payment screenshots
+ * for users to download and upload manually.
+ */
+app.get("/api/sample-pack.zip", async (_req: Request, res: Response) => {
+  try {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+
+    const samplesDir = path.resolve(process.cwd(), "samples");
+    if (fs.existsSync(samplesDir)) {
+      const files = fs.readdirSync(samplesDir);
+      for (const f of files) {
+        const fullPath = path.join(samplesDir, f);
+        const stat = fs.statSync(fullPath);
+        if (stat.isFile()) {
+          zip.file(f, fs.readFileSync(fullPath));
+        } else if (stat.isDirectory() && f === "screenshots") {
+          const shotFiles = fs.readdirSync(fullPath);
+          const shotsFolder = zip.folder("screenshots");
+          for (const shot of shotFiles) {
+            shotsFolder?.file(shot, fs.readFileSync(path.join(fullPath, shot)));
+          }
+        }
+      }
+    }
+
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", 'attachment; filename="hisaab-sample-pack.zip"');
+    res.send(buffer);
+  } catch (err: any) {
+    console.error("[/api/sample-pack.zip error]:", err);
+    res.status(500).json({ error: err?.message || "Failed to create sample pack" });
+  }
+});
+
+/**
  * GET /api/screenshot/:fileName
  * Serves payment screenshot images to the UI side panel.
  */

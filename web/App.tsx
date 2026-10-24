@@ -695,14 +695,26 @@ export default function App() {
                   cancellations, short payments, duplicate receipts, missing address, and blurry screenshot.
                 </p>
               </div>
-              <button
-                onClick={handleLoadSample}
-                disabled={isAnalyzing}
-                className="whitespace-nowrap px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                {isSampleLoaded ? "Sample Loaded ✓" : "Load Sample Dataset"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="/api/sample-pack.zip"
+                  download="hisaab-sample-pack.zip"
+                  className="whitespace-nowrap px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow"
+                  title="Download raw sample chats, catalogs, and screenshots (.zip) to test manual upload"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  Download Test Pack (.zip)
+                </a>
+
+                <button
+                  onClick={handleLoadSample}
+                  disabled={isAnalyzing}
+                  className="whitespace-nowrap px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {isSampleLoaded ? "Sample Loaded ✓" : "1-Click Load Sample"}
+                </button>
+              </div>
             </div>
 
             {/* Upload Inputs Grid */}
