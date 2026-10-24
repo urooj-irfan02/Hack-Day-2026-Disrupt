@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   Sparkles,
   Table,
+  Trash2,
   UploadCloud,
   X,
   XCircle,
@@ -119,8 +120,10 @@ export default function App() {
   const [showLicenseModal, setShowLicenseModal] = useState<boolean>(false);
 
   // Upload Step State
+  const [chatInputMode, setChatInputMode] = useState<"file" | "paste">("file");
   const [chatFile, setChatFile] = useState<File | null>(null);
   const [chatText, setChatText] = useState<string>("");
+  const [catalogInputMode, setCatalogInputMode] = useState<"file" | "paste">("file");
   const [catalogFile, setCatalogFile] = useState<File | null>(null);
   const [catalogText, setCatalogText] = useState<string>("");
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
@@ -192,7 +195,15 @@ export default function App() {
       setAnalyzeError(null);
 
       let response: Response;
-      if (isSampleLoaded && (!chatFile || !catalogFile)) {
+      const shouldUseFastSample =
+        isSampleLoaded &&
+        chatInputMode === "file" &&
+        !chatFile &&
+        catalogInputMode === "file" &&
+        !catalogFile &&
+        screenshotFiles.length === 0;
+
+      if (shouldUseFastSample) {
         // Fast path: use synthetic samples on server
         response = await fetch("/api/analyze", {
           method: "POST",
@@ -206,15 +217,29 @@ export default function App() {
       } else {
         // Multipart upload form
         const formData = new FormData();
-        if (chatFile) formData.append("chat", chatFile);
-        else formData.append("chat", chatText);
+        if (chatInputMode === "file" && chatFile) {
+          formData.append("chat", chatFile);
+        } else {
+          formData.append("chat", chatText);
+        }
 
-        if (catalogFile) formData.append("catalog", catalogFile);
-        else formData.append("catalog", catalogText);
+        if (catalogInputMode === "file" && catalogFile) {
+          formData.append("catalog", catalogFile);
+        } else {
+          formData.append(
+            "catalog",
+            catalogText ||
+              "item,aliases,unit_price\nChocolate Fudge Cake,chocolate cake|fudge cake,1800\nNutella Brownies,brownies|brownie box,1200\nLotus Cheesecake,lotus cake|cheesecake,2200\nAlmond Tea Cake,tea cake|almond cake,950\nRed Velvet Cake,red velvet|velvet cake,1900\nPistachio Tart,tart|pista tart,1400"
+          );
+        }
 
         screenshotFiles.forEach((file) => {
           formData.append("screenshots", file);
         });
+
+        if (screenshotFiles.length === 0 && (isSampleLoaded || sampleScreenshots.length > 0)) {
+          formData.append("useSample", "true");
+        }
 
         response = await fetch("/api/analyze", {
           method: "POST",
@@ -719,53 +744,138 @@ export default function App() {
 
             {/* Upload Inputs Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Chat Input */}
+              {/* Card 1: WhatsApp Chat (File OR Paste) */}
               <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 flex flex-col justify-between">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-sm text-white flex items-center gap-2">
                       <MessageSquare className="w-4 h-4 text-emerald-400" />
                       1. WhatsApp Chat
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">.txt</span>
+                    {/* Tab Switcher: File vs Paste */}
+                    <div className="flex items-center p-0.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setChatInputMode("file")}
+                        className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                          chatInputMode === "file"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        File (.txt)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChatInputMode("paste")}
+                        className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                          chatInputMode === "paste"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        Paste Text
+                      </button>
+                    </div>
                   </div>
+
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Android or iOS export (.txt). Supports multi-line chats and attachment tags.
+                    {chatInputMode === "file"
+                      ? "Upload an exported WhatsApp chat .txt file (Android or iOS format)."
+                      : "Directly paste copied WhatsApp conversation messages below."}
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block w-full border-2 border-dashed border-slate-700/80 hover:border-emerald-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-950/40">
-                    <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-2" />
-                    <span className="text-xs font-medium text-slate-300 block">
-                      {chatFile
-                        ? chatFile.name
-                        : isSampleLoaded
-                        ? "samples/chat.txt (Loaded)"
-                        : "Choose chat.txt"}
-                    </span>
-                    <input
-                      type="file"
-                      accept=".txt"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setChatFile(file);
+                {chatInputMode === "file" ? (
+                  /* Option A: File Upload */
+                  <div className="space-y-2">
+                    <label className="block w-full border-2 border-dashed border-slate-700/80 hover:border-emerald-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-950/40">
+                      <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-2" />
+                      <span className="text-xs font-medium text-slate-300 block truncate">
+                        {chatFile
+                          ? chatFile.name
+                          : isSampleLoaded
+                          ? "samples/chat.txt (Loaded)"
+                          : "Choose chat.txt"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".txt"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setChatFile(file);
+                            setIsSampleLoaded(false);
+                          }
+                        }}
+                      />
+                    </label>
+                    {isSampleLoaded && (
+                      <span className="text-[11px] text-emerald-400 font-mono block text-center">
+                        21 messages ready
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  /* Option B: Direct Text Paste */
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <textarea
+                        value={chatText}
+                        onChange={(e) => {
+                          setChatText(e.target.value);
                           setIsSampleLoaded(false);
-                        }
-                      }}
-                    />
-                  </label>
-                  {isSampleLoaded && (
-                    <span className="text-[11px] text-emerald-400 font-mono block text-center">
-                      21 messages ready
-                    </span>
-                  )}
-                </div>
+                        }}
+                        rows={6}
+                        placeholder={`Paste WhatsApp messages here...\n\nExample:\n21/10/2026, 10:15 - Ahmed: Salam bhai, 1 Chocolate Fudge Cake chahiye kal tak. House 12, F-8/2 Islamabad. 03001234567\n21/10/2026, 10:25 - Ahmed: PAY-20261021-WA0001.jpg (file attached)`}
+                        className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-emerald-500 leading-relaxed placeholder:text-slate-600"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span>
+                        {chatText.trim()
+                          ? `${chatText.trim().split("\n").length} lines • ${chatText.length} chars`
+                          : "Waiting for text..."}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {chatText && (
+                          <button
+                            type="button"
+                            onClick={() => setChatText("")}
+                            className="text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                            title="Clear pasted text"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Clear
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const clip = await navigator.clipboard.readText();
+                              if (clip) {
+                                setChatText(clip);
+                                setIsSampleLoaded(false);
+                              }
+                            } catch {
+                              // Clipboard read failed or restricted
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Clipboard className="w-3 h-3 text-emerald-400" />
+                          Paste
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Screenshots Input */}
+              {/* Card 2: Screenshots Input */}
               <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -783,7 +893,7 @@ export default function App() {
                 <div className="space-y-2">
                   <label className="block w-full border-2 border-dashed border-slate-700/80 hover:border-emerald-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-950/40">
                     <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-2" />
-                    <span className="text-xs font-medium text-slate-300 block">
+                    <span className="text-xs font-medium text-slate-300 block truncate">
                       {screenshotFiles.length > 0
                         ? `${screenshotFiles.length} files selected`
                         : isSampleLoaded
@@ -811,50 +921,109 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Catalog Input */}
+              {/* Card 3: Price Catalog (File OR Paste) */}
               <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 flex flex-col justify-between">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-sm text-white flex items-center gap-2">
                       <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                       3. Price Catalog
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">.csv</span>
+                    {/* Tab Switcher: File vs Paste */}
+                    <div className="flex items-center p-0.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setCatalogInputMode("file")}
+                        className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                          catalogInputMode === "file"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        File (.csv)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCatalogInputMode("paste")}
+                        className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                          catalogInputMode === "paste"
+                            ? "bg-emerald-500/20 text-emerald-300 font-semibold"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        Paste CSV
+                      </button>
+                    </div>
                   </div>
+
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Item name, pipe-separated aliases (Roman Urdu), and unit price.
+                    {catalogInputMode === "file"
+                      ? "Item name, pipe-separated Roman Urdu aliases, and unit price."
+                      : "Directly paste or edit catalog CSV lines below."}
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block w-full border-2 border-dashed border-slate-700/80 hover:border-emerald-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-950/40">
-                    <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-2" />
-                    <span className="text-xs font-medium text-slate-300 block">
-                      {catalogFile
-                        ? catalogFile.name
-                        : isSampleLoaded
-                        ? "samples/catalog.csv (Loaded)"
-                        : "Choose catalog.csv"}
-                    </span>
-                    <input
-                      type="file"
-                      accept=".csv"
-                      className="hidden"
+                {catalogInputMode === "file" ? (
+                  <div className="space-y-2">
+                    <label className="block w-full border-2 border-dashed border-slate-700/80 hover:border-emerald-500/50 rounded-xl p-4 text-center cursor-pointer transition-colors bg-slate-950/40">
+                      <UploadCloud className="w-6 h-6 mx-auto text-slate-400 mb-2" />
+                      <span className="text-xs font-medium text-slate-300 block truncate">
+                        {catalogFile
+                          ? catalogFile.name
+                          : isSampleLoaded
+                          ? "samples/catalog.csv (Loaded)"
+                          : "Choose catalog.csv"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setCatalogFile(file);
+                            setIsSampleLoaded(false);
+                          }
+                        }}
+                      />
+                    </label>
+                    {isSampleLoaded && (
+                      <span className="text-[11px] text-emerald-400 font-mono block text-center">
+                        6 bakery items loaded
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      value={catalogText}
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setCatalogFile(file);
-                          setIsSampleLoaded(false);
-                        }
+                        setCatalogText(e.target.value);
+                        setIsSampleLoaded(false);
                       }}
+                      rows={6}
+                      placeholder={`item,aliases,unit_price\nChocolate Fudge Cake,choc cake|fudge cake,1800\nNutella Brownies,brownies|brownie box,1200\nLotus Cheesecake,cheesecake,2200`}
+                      className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 resize-none focus:outline-none focus:border-emerald-500 leading-relaxed placeholder:text-slate-600"
                     />
-                  </label>
-                  {isSampleLoaded && (
-                    <span className="text-[11px] text-emerald-400 font-mono block text-center">
-                      6 bakery items loaded
-                    </span>
-                  )}
-                </div>
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span>
+                        {catalogText.trim()
+                          ? `${catalogText.trim().split("\n").length} items`
+                          : "Waiting for CSV..."}
+                      </span>
+                      {catalogText && (
+                        <button
+                          type="button"
+                          onClick={() => setCatalogText("")}
+                          className="text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -870,7 +1039,11 @@ export default function App() {
             <div className="pt-2 flex justify-center">
               <button
                 onClick={handleRunAnalysis}
-                disabled={isAnalyzing || (!chatFile && !isSampleLoaded && !chatText)}
+                disabled={
+                  isAnalyzing ||
+                  (chatInputMode === "file" && !chatFile && !isSampleLoaded && !chatText) ||
+                  (chatInputMode === "paste" && !chatText.trim())
+                }
                 className="w-full sm:w-auto min-w-[280px] py-3.5 px-8 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-sm tracking-wide uppercase transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isAnalyzing ? (
